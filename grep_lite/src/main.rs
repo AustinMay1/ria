@@ -1,48 +1,50 @@
+use std::fs::File;
+use std::io::BufReader;
+use std::io::prelude::*;
+use std::io;
+use clap::{App, Arg};
+use regex::Regex;
+
+fn process_lines<T: BufRead + Sized>(reader: T, rx: Regex) {
+    for i in reader.lines() {
+        let line = i.unwrap();
+        match rx.find(&line) {
+            Some (_) => println!("{}", line),
+            None => (),
+        }
+    }
+}
+
 fn main() {
-    let ctx_lines = 2;
-    let needle = "oo";
-    let haystack = "\
-    Every face, every shop, 
-    bedroom window, public-house, and
-    dark square is a picture 
-    feverishly turned--in search of what?
-    It is the same with books.
-    What do we seek
-    through millions of pages?";
+    let args = App::new("grep-lite")
+        .version("0.1")
+        .about("searches for patterns.")
+        .arg(
+            Arg::with_name("pattern")
+                .help("the pattern to search for")
+                .takes_value(true)
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("input")
+            .help("file to search")
+            .takes_value(true)
+            .required(true)            
+        )
+        .get_matches();
 
-    let mut tags: Vec<usize> = vec![];
-    let mut ctx: Vec<Vec<(usize, String)>> = vec![];
-
-    for (i, line) in haystack.lines().enumerate() {
-        if line.contains(needle) {
-            tags.push(i);
-
-            let v = Vec::with_capacity(2 * ctx_lines + 1);
-            ctx.push(v);
-        }
-    }
-
-    if tags.is_empty() {
-        return;
-    }
-
-    for (i, line) in haystack.lines().enumerate() {
-        for(j, tag) in tags.iter().enumerate() {
-            let lower = tag.saturating_sub(ctx_lines);
-            let upper = tag + ctx_lines;
-
-            if (i >= lower) && (i <= upper) {
-                let line_as_str = String::from(line);
-                let local = (i, line_as_str);
-                ctx[j].push(local);
-            }
-        }
-    }
-
-    for local in ctx.iter() {
-        for &(i, ref line) in local.iter() {
-            let line_num = i + 1;
-            println!("{}: {}", line_num, line);
-        }
-    }
+    let pattern = args.value_of("pattern").unwrap();
+    let rx = Regex::new(pattern).unwrap();
+    
+    let input = args.value_of("input").unwrap_or("-");
+  
+    if input == "-" {
+        let stdin = io::stdin();
+        let reader = stdin.lock();
+        process_lines(reader, rx);
+    } else {
+        let f = File::open(input).unwrap();
+        let reader = BufReader::new(f);
+        process_lines(reader, rx);
+    }   
 }
